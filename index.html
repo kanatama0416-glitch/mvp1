@@ -1,239 +1,197 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>イベント施策投稿フォーム</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        body { background-color: #f8f9ff; color: #333; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-        .card-shadow { box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
-        .accent-purple { background-color: #f3f0ff; border: 1px solid #e9e4ff; }
-        input[type="radio"]:checked + span { background-color: #8b5cf6; color: white; border-color: #8b5cf6; }
-        .loading { opacity: 0.5; pointer-events: none; }
-        @keyframes popIn { 0% { transform: scale(0.9); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
-        .success-overlay { animation: popIn 0.3s ease-out; }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>達人の投稿（閲覧）</title>
 
-        /* 追加：タブのデザイン */
-        .tab-btn { position: relative; transition: all 0.3s; }
-        .tab-active { color: #8b5cf6 !important; }
-        .tab-active::after { content: ''; position: absolute; bottom: 0; left: 0; width: 100%; height: 3px; background-color: #8b5cf6; border-radius: 3px; }
-    </style>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+  <style>
+    body { background-color: #f8f9ff; color: #333; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .card-shadow { box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
+    .chip { display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; font-size:12px; font-weight:700; border:1px solid rgba(0,0,0,0.06); box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
+    .chip-orange { background:#fff7ed; color:#c2410c; border-color:#fed7aa; }
+    .chip-green { background:#ecfdf5; color:#047857; border-color:#a7f3d0; }
+    .chip-slate { background:#f1f5f9; color:#334155; border-color:#e2e8f0; }
+    .chip-purple { background:#f3f0ff; color:#6d28d9; border-color:#e9e4ff; }
+    .details-anim { overflow:hidden; }
+    details[open] .chev { transform: rotate(180deg); }
+    .chev { transition: transform .2s ease; }
+    summary { list-style:none; }
+    summary::-webkit-details-marker { display:none; }
+  </style>
 </head>
+
 <body class="p-4 pb-12">
+  <div id="app" class="max-w-md mx-auto relative">
 
-    <div id="app" class="max-w-md mx-auto relative">
-        
-        <div class="flex mb-6 border-b border-gray-200 sticky top-0 bg-[#f8f9ff]/90 backdrop-blur-sm z-30">
-            <button type="button" id="btn-post" onclick="toggleView('post')" class="tab-btn flex-1 py-4 font-bold text-gray-400 tab-active">
-                <i class="fa-solid fa-pen-to-square mr-1"></i> 投稿する
-            </button>
-            <button type="button" id="btn-view" onclick="toggleView('view')" class="tab-btn flex-1 py-4 font-bold text-gray-400">
-                <i class="fa-solid fa-layer-group mr-1"></i> 閲覧する
-            </button>
+    <!-- 上部ヘッダー -->
+    <div class="sticky top-0 z-30 bg-[#f8f9ff]/90 backdrop-blur-sm pt-2 pb-4">
+      <div class="bg-white rounded-2xl card-shadow border border-gray-100 p-5">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <p class="text-[11px] font-bold text-gray-400 tracking-widest">イベントタイトル</p>
+            <h1 class="text-2xl font-extrabold text-gray-800 leading-tight">MGA</h1>
+          </div>
+          <div class="text-right">
+            <p class="text-[12px] font-extrabold text-purple-600">達人の投稿</p>
+            <p class="text-[11px] text-gray-400">フック・ひきこみを“単語チップ”で覚える</p>
+          </div>
         </div>
-
-        <div id="successMessage" class="hidden fixed inset-0 z-50 flex items-center justify-center p-6 bg-white/90 backdrop-blur-sm">
-            <div class="success-overlay bg-white p-8 rounded-3xl card-shadow border border-purple-100 text-center w-full max-w-xs">
-                <div class="w-20 h-20 bg-green-100 text-green-500 rounded-full flex items-center justify-center mx-auto mb-4 text-4xl">
-                    <i class="fa-solid fa-check"></i>
-                </div>
-                <h2 class="text-xl font-bold text-gray-800 mb-2">送信完了！</h2>
-                <p class="text-sm text-gray-500 mb-6">施策内容を無事に保存しました。</p>
-                <button onclick="resetForm()" class="w-full py-3 bg-purple-600 text-white rounded-xl font-bold shadow-md">続けて投稿する</button>
-            </div>
-        </div>
-
-        <div id="view-post" class="space-y-4">
-            <div class="mb-6 flex items-center gap-2 text-lg font-bold text-gray-700">
-                <span class="text-pink-500">📌</span>
-                <h1>施策内容の登録</h1>
-            </div>
-
-            <form id="promoForm" class="space-y-4">
-                <div class="bg-white p-5 rounded-2xl card-shadow border border-gray-100 space-y-3">
-                    <div class="flex items-center gap-2 mb-1 font-bold text-gray-800 text-sm">
-                        <i class="fa-solid fa-user-pen text-blue-400"></i> 基本情報
-                    </div>
-                    <input type="text" id="staff_name" placeholder="お名前" class="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" required>
-                    <input type="text" id="event_name" placeholder="イベント名" class="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" required>
-                    <input type="text" id="store_name" placeholder="店舗名・会場" class="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm">
-                </div>
-
-                <div class="accent-purple p-5 rounded-3xl card-shadow space-y-4">
-                    <div class="flex items-center gap-2 font-bold text-gray-800 text-sm"><span>🎁</span> 特典・券面設定</div>
-                    <div class="space-y-3">
-                        <p class="text-xs font-bold text-gray-600 px-1">コンテンツ関連の券面はある？</p>
-                        <div class="grid grid-cols-2 gap-2">
-                            <label class="cursor-pointer"><input type="radio" name="has_special_design" value="true" class="hidden"><span class="block text-center p-3 bg-white border border-gray-200 rounded-xl text-sm font-medium">あり</span></label>
-                            <label class="cursor-pointer"><input type="radio" name="has_special_design" value="false" class="hidden" checked><span class="block text-center p-3 bg-white border border-gray-200 rounded-xl text-sm font-medium">なし</span></label>
-                        </div>
-                        <p class="text-xs font-bold text-gray-600 px-1 mt-3">カード入会特典はある？</p>
-                        <div class="grid grid-cols-2 gap-2">
-                            <label class="cursor-pointer"><input type="radio" name="has_signup_bonus" value="true" class="hidden"><span class="block text-center p-3 bg-white border border-gray-200 rounded-xl text-sm font-medium">あり</span></label>
-                            <label class="cursor-pointer"><input type="radio" name="has_signup_bonus" value="false" class="hidden" checked><span class="block text-center p-3 bg-white border border-gray-200 rounded-xl text-sm font-medium">なし</span></label>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="bg-white rounded-2xl card-shadow border border-gray-100 overflow-hidden">
-                    <div class="p-4">
-                        <label class="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2"><i class="fa-solid fa-comment-dots text-orange-400"></i> フック内容</label>
-                        <textarea id="hook_content" rows="3" placeholder="最初の声掛け" class="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"></textarea>
-                    </div>
-                    <div class="bg-gray-50 p-3 border-t border-dashed border-gray-200">
-                        <label class="flex items-center justify-center gap-2 cursor-pointer py-2 px-4 bg-white border border-gray-300 rounded-lg text-xs font-bold text-gray-600">
-                            <i class="fa-solid fa-camera"></i> 写真を追加
-                            <input type="file" id="hook_image" accept="image/*" class="hidden">
-                        </label>
-                        <div id="hook_preview" class="hidden mt-2 text-[10px] text-blue-500 text-center font-bold">画像セット完了</div>
-                    </div>
-                </div>
-
-                <div class="bg-white rounded-2xl card-shadow border border-gray-100 overflow-hidden">
-                    <div class="p-4">
-                        <label class="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2"><i class="fa-solid fa-bullhorn text-green-400"></i> ひきこみ内容</label>
-                        <textarea id="pitch_content" rows="3" placeholder="メリットの伝え方" class="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"></textarea>
-                    </div>
-                    <div class="bg-gray-50 p-3 border-t border-dashed border-gray-200">
-                        <label class="flex items-center justify-center gap-2 cursor-pointer py-2 px-4 bg-white border border-gray-300 rounded-lg text-xs font-bold text-gray-600">
-                            <i class="fa-solid fa-image"></i> 写真を追加
-                            <input type="file" id="pitch_image" accept="image/*" class="hidden">
-                        </label>
-                        <div id="pitch_preview" class="hidden mt-2 text-[10px] text-blue-500 text-center font-bold">画像セット完了</div>
-                    </div>
-                </div>
-
-                <div class="bg-white p-5 rounded-2xl card-shadow border border-gray-100">
-                    <textarea id="memo" rows="2" placeholder="ほかになにかあれば" class="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"></textarea>
-                </div>
-
-                <button type="submit" id="submitBtn" class="w-full bg-slate-800 text-white font-bold py-4 rounded-2xl shadow-lg active:scale-95 transition-all">登録する</button>
-            </form>
-        </div>
-
-        <div id="view-gallery" class="hidden space-y-4">
-            <div class="mb-4 flex items-center justify-between">
-                <div class="flex items-center gap-2 text-lg font-bold text-gray-700">
-                    <span class="text-yellow-500">🏆</span>
-                    <h1>みんなの施策ランキング</h1>
-                </div>
-            </div>
-            <div id="ranking-container" class="space-y-4 pb-20">
-                </div>
-        </div>
-
+      </div>
     </div>
 
-    <script>
-        // ダミーデータ
-        let posts = [
-            { id: 1, staff_name: "田中", event_name: "MGA", store_name: "渋谷", hook_content: "ミセスのカードとか持っています？", pitch_content: "券面を実際にみせながら、「最近新しいデザインも出たんですよ！」", likes: 15 },
-            { id: 2, staff_name: "佐藤", event_name: "MGA", store_name: "新宿", hook_content: "ミセスのファンクラブ入っていますか？（大量にご購入されていたので、かなり熱心なファンかなと思い話しかけました）", pitch_content: "ミセスのデザインのエポスカードがあるのですが、お作りいただくとファンクラブの会費が初回500円オフになりますよ", likes: 28 },
-            { id: 3, staff_name: "鈴木", event_name: "MGA", store_name: "池袋", hook_content: "（缶バッチをたくさん購入していたので）誰が推しなんですか？", pitch_content: "エポスカードをお作りいただくと2000円分お会計からお値引きできます！推しが当たる可能性高まりますよ、どうです？", likes: 10 }
-        ];
+    <!-- 一覧 -->
+    <div id="ranking-container" class="space-y-4 pb-20"></div>
 
-        // ページ切り替え（ここを確実に動かす！）
-        function toggleView(target) {
-            const vPost = document.getElementById('view-post');
-            const vGallery = document.getElementById('view-gallery');
-            const bPost = document.getElementById('btn-post');
-            const bView = document.getElementById('btn-view');
+  </div>
 
-            if (target === 'post') {
-                vPost.classList.remove('hidden');
-                vGallery.classList.add('hidden');
-                bPost.classList.add('tab-active');
-                bView.classList.remove('tab-active');
-            } else {
-                vPost.classList.add('hidden');
-                vGallery.classList.remove('hidden');
-                bPost.classList.remove('tab-active');
-                bView.classList.add('tab-active');
-                renderRanking(); // 閲覧ページを表示するときに描画
-            }
-        }
+  <script>
+    // ダミーデータ（構造を変更：フック/ひきこみは「単語チップ」配列に）
+    // 属性は tags にまとめています（必要に応じて増やしてOK）
+    let posts = [
+      {
+        id: 1,
+        staff_name: "田中",
+        event_name: "MGA",
+        store_name: "渋谷",
+        hook_words: ["カード", "所持", "確認"],
+        pitch_words: ["券面提示", "新デザイン"],
+        tags: ["初手質問", "視覚訴求", "ライトファン"],
+        hook_content: "ミセスのカードとか持っています？",
+        pitch_content: "券面を実際にみせながら、「最近新しいデザインも出たんですよ！」",
+        likes: 15
+      },
+      {
+        id: 2,
+        staff_name: "佐藤",
+        event_name: "MGA",
+        store_name: "新宿",
+        hook_words: ["ファンクラブ", "加入", "確認"],
+        pitch_words: ["年会費", "500円OFF"],
+        tags: ["購買量観察", "特典直球", "熱量高め"],
+        hook_content: "ミセスのファンクラブ入っていますか？（大量にご購入されていたので、かなり熱心なファンかなと思い話しかけました）",
+        pitch_content: "ミセスのデザインのエポスカードがあるのですが、お作りいただくとファンクラブの会費が初回500円オフになりますよ",
+        likes: 28
+      },
+      {
+        id: 3,
+        staff_name: "鈴木",
+        event_name: "MGA",
+        store_name: "池袋",
+        hook_words: ["推し", "質問", "会話開始"],
+        pitch_words: ["2000円OFF", "推し確率UP"],
+        tags: ["推し会話", "値引き訴求", "缶バッチ購入"],
+        hook_content: "（缶バッチをたくさん購入していたので）誰が推しなんですか？",
+        pitch_content: "エポスカードをお作りいただくと2000円分お会計からお値引きできます！推しが当たる可能性高まりますよ、どうです？",
+        likes: 10
+      }
+    ];
 
-        // ランキング描画
-        function renderRanking() {
-            const container = document.getElementById('ranking-container');
-            if (!container) return;
-            container.innerHTML = '';
+    // チップHTML生成
+    function chipsHtml(words, colorClass) {
+      if (!Array.isArray(words) || words.length === 0) return '';
+      return words.map(w => `<span class="chip ${colorClass}">${escapeHtml(w)}</span>`).join('');
+    }
 
-            // 評価順にソート
-            const sorted = [...posts].sort((a, b) => b.likes - a.likes);
+    // ランキング描画（いいね順）
+    function renderRanking() {
+      const container = document.getElementById('ranking-container');
+      if (!container) return;
+      container.innerHTML = '';
 
-            sorted.forEach((p, idx) => {
-                const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : '📄';
-                const card = document.createElement('div');
-                card.className = "bg-white p-5 rounded-2xl card-shadow border border-gray-100";
-                card.innerHTML = `
-                    <div class="flex justify-between items-start mb-3">
-                        <div>
-                            <span class="text-[10px] bg-purple-50 text-purple-600 px-2 py-0.5 rounded-full font-bold">${p.event_name}</span>
-                            <h2 class="font-bold text-gray-800 mt-1">${medal} ${p.staff_name} <span class="text-xs text-gray-400 font-normal">@${p.store_name}</span></h2>
-                        </div>
-                        <button onclick="likePost(${p.id})" class="flex flex-col items-center hover:scale-110 transition-transform">
-                            <i class="fa-solid fa-heart text-pink-500 text-xl"></i>
-                            <span class="text-[10px] font-bold text-gray-500">${p.likes}</span>
-                        </button>
-                    </div>
-                    <div class="space-y-2 text-sm text-gray-700">
-                        <div class="p-3 bg-orange-50 rounded-xl"><p class="text-[10px] font-bold text-orange-400 mb-1">🪝 フック</p><p>${p.hook_content}</p></div>
-                        <div class="p-3 bg-green-50 rounded-xl"><p class="text-[10px] font-bold text-green-400 mb-1">📢 ひきこみ</p><p>${p.pitch_content}</p></div>
-                    </div>
-                `;
-                container.appendChild(card);
-            });
-        }
+      const sorted = [...posts].sort((a, b) => b.likes - a.likes);
 
-        // いいね機能
-        window.likePost = function(id) {
-            const post = posts.find(p => p.id === id);
-            if (post) {
-                post.likes++;
-                renderRanking();
-            }
-        };
+      sorted.forEach((p, idx) => {
+        const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : '📄';
 
-        // フォーム処理
-        const form = document.getElementById('promoForm');
-        form.addEventListener('submit', (e) => {
-            e.preventDefault();
-            // 投稿内容をダミーデータへ追加
-            const newPost = {
-                id: Date.now(),
-                staff_name: document.getElementById('staff_name').value,
-                event_name: document.getElementById('event_name').value,
-                store_name: document.getElementById('store_name').value,
-                hook_content: document.getElementById('hook_content').value,
-                pitch_content: document.getElementById('pitch_content').value,
-                likes: 0
-            };
-            posts.push(newPost);
-            document.getElementById('successMessage').classList.remove('hidden');
-        });
+        const card = document.createElement('div');
+        card.className = "bg-white p-5 rounded-2xl card-shadow border border-gray-100";
 
-        // 画像プレビューの安全な処理
-        ['hook_image', 'pitch_image'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) {
-                el.addEventListener('change', () => {
-                    document.getElementById(`${id}_preview`)?.classList.remove('hidden');
-                });
-            }
-        });
+        card.innerHTML = `
+          <div class="flex justify-between items-start mb-3">
+            <div>
+              <span class="text-[10px] bg-purple-50 text-purple-600 px-2 py-0.5 rounded-full font-bold">${escapeHtml(p.event_name)}</span>
+              <h2 class="font-bold text-gray-800 mt-1">${medal} ${escapeHtml(p.staff_name)}
+                <span class="text-xs text-gray-400 font-normal">@${escapeHtml(p.store_name || "-")}</span>
+              </h2>
+            </div>
+            <button onclick="likePost(${p.id})" class="flex flex-col items-center hover:scale-110 transition-transform">
+              <i class="fa-solid fa-heart text-pink-500 text-xl"></i>
+              <span class="text-[10px] font-bold text-gray-500">${p.likes}</span>
+            </button>
+          </div>
 
-        window.resetForm = function() {
-            form.reset();
-            document.getElementById('successMessage').classList.add('hidden');
-            document.getElementById('hook_preview').classList.add('hidden');
-            document.getElementById('pitch_preview').classList.add('hidden');
-        };
+          <!-- フック（単語チップ） -->
+          <div class="mb-3">
+            <p class="text-[10px] font-bold text-orange-600 mb-2">🪝 フック</p>
+            <div class="flex flex-wrap gap-2">
+              ${chipsHtml(p.hook_words, 'chip-orange')}
+            </div>
+          </div>
 
-    </script>
+          <!-- 引き込み（単語チップ） -->
+          <div class="mb-3">
+            <p class="text-[10px] font-bold text-green-700 mb-2">📢 引き込み</p>
+            <div class="flex flex-wrap gap-2">
+              ${chipsHtml(p.pitch_words, 'chip-green')}
+            </div>
+          </div>
+
+          <!-- 属性（単語チップ） -->
+          <div class="mb-1">
+            <p class="text-[10px] font-bold text-slate-700 mb-2">🏷 属性</p>
+            <div class="flex flex-wrap gap-2">
+              ${chipsHtml(p.tags, 'chip-slate')}
+            </div>
+          </div>
+
+          <!-- 全文（プルダウン） -->
+          <details class="mt-4 details-anim rounded-2xl border border-gray-200 bg-gray-50">
+            <summary class="px-4 py-3 cursor-pointer flex items-center justify-between">
+              <span class="text-sm font-extrabold text-gray-700">全文を見る</span>
+              <i class="fa-solid fa-chevron-down text-gray-400 chev"></i>
+            </summary>
+            <div class="px-4 pb-4">
+              <div class="mt-3 p-4 bg-orange-50 rounded-2xl">
+                <p class="text-[11px] font-bold text-orange-600 mb-2">🪝 フック（全文）</p>
+                <p class="text-sm text-gray-700 whitespace-pre-wrap">${escapeHtml(p.hook_content || "")}</p>
+              </div>
+              <div class="mt-3 p-4 bg-green-50 rounded-2xl">
+                <p class="text-[11px] font-bold text-green-700 mb-2">📢 ひきこみ（全文）</p>
+                <p class="text-sm text-gray-700 whitespace-pre-wrap">${escapeHtml(p.pitch_content || "")}</p>
+              </div>
+            </div>
+          </details>
+        `;
+
+        container.appendChild(card);
+      });
+    }
+
+    // いいね機能
+    window.likePost = function(id) {
+      const post = posts.find(p => p.id === id);
+      if (post) {
+        post.likes++;
+        renderRanking();
+      }
+    };
+
+    // XSS対策（簡易）
+    function escapeHtml(str) {
+      return String(str)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    // 初期描画
+    renderRanking();
+  </script>
 </body>
 </html>
-
